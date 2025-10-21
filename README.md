@@ -1,2 +1,3 @@
-# WASMBD
-Web Assembly Back Door
+# WASMBD: WebAssembly-based Remote Management Framework
+
+A professional, secure, and cross-platform WebAssembly-based Remote Management Framework that operates seamlessly across Windows, macOS, Linux, Android, iOS, and all major architectures including x86, x86_64, ARM, and ARM64. The project is a WASM-native backend agent system designed for authorized remote execution, automation, monitoring, and distributed task orchestration, using WebAssembly for sandboxed, portable execution of workloads and modules.
