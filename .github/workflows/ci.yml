@@ -1,0 +1,67 @@
+name: CI/CD
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  pull_request:
+    branches:
+      - main
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build_and_test:
+    name: Build and Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-wasip1
+
+      - name: Build Agent
+        run: cargo build -p agent --target wasm32-wasip1
+
+      - name: Build Controller
+        run: cargo build -p controller
+
+      - name: Run Agent Tests
+        run: cargo test -p agent
+
+      - name: Run Controller Tests
+        run: cargo test -p controller
+
+  release:
+    name: Create Release
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: build_and_test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-wasip1
+
+      - name: Build Agent for Release
+        run: cargo build -p agent --release --target wasm32-wasip1
+
+      - name: Build Controller for Release
+        run: cargo build -p controller --release
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            target/wasm32-wasip1/release/hello_world.wasm
+            target/release/agent
+            target/release/controller
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

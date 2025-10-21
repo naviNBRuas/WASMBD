@@ -1,32 +1,18 @@
-use wasmtime::{Config, Engine, Module, Store, Linker};
 use anyhow::Result;
+use wasmtime::{
+    Config,
+    Engine,
+    Module,
+    Store,
+    Linker,
+};
 use wasmtime_wasi::{WasiCtxBuilder};
 use wasmtime_wasi::p1::WasiP1Ctx;
 use wasmtime_wasi::p1::wasi_snapshot_preview1::add_to_linker as add_wasi_to_linker;
-use reqwest;
-use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Debug)]
-struct RegistrationResponse {
-    id: String,
-}
-
-async fn register_agent() -> Result<String> {
-    let client = reqwest::Client::new();
-    let res = client.get("http://127.0.0.1:3000/agent/register").send().await?;
-    let body = res.text().await?;
-    // The controller returns a string like "Agent registered with ID: <UUID>"
-    // We need to parse out the UUID.
-    let agent_id = body.replace("Agent registered with ID: ", "").trim_matches('"').to_string();
-    Ok(agent_id)
-}
-
-#[tokio::main]
-async fn main() -> Result<()> {
-    println!("Agent: Starting up...");
-
-    let agent_id = register_agent().await?;
-    println!("Agent: Registered with ID: {}", agent_id);
+#[tokio::test]
+async fn test_wasm_execution() -> Result<()> {
+    println!("Current working directory: {:?}", std::env::current_dir()?);
 
     // 1. Create a Config and enable async support
     let mut config = Config::new();
@@ -50,7 +36,7 @@ async fn main() -> Result<()> {
     add_wasi_to_linker(&mut linker, |s: &mut WasiP1Ctx| s)?;
 
     // 7. Load the WASM module from file
-    let wasm_bytes = std::fs::read("target/wasm32-wasip1/debug/hello_world.wasm")?;
+    let wasm_bytes = std::fs::read("../target/wasm32-wasip1/debug/hello_world.wasm")?;
     let module = Module::new(&engine, wasm_bytes)?;
 
     // 8. Instantiate the module
@@ -60,12 +46,8 @@ async fn main() -> Result<()> {
     let run_func = instance.get_func(&mut store, "run")
         .expect("Failed to find 'run' function in WASM module");
 
-    println!("Agent: Calling WASM module...");
-
     // 10. Call the `run` function (async version)
     run_func.call_async(&mut store, &[], &mut []).await?;
-
-    println!("Agent: WASM module call finished.");
 
     Ok(())
 }
