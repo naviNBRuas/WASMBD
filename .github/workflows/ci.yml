@@ -31,37 +31,78 @@ jobs:
       - name: Build Controller
         run: cargo build -p controller
 
+      - name: Build Hello-World Plugin
+        run: cargo build -p hello-world --target wasm32-wasip1
+
       - name: Run Agent Tests
         run: cargo test -p agent
 
       - name: Run Controller Tests
         run: cargo test -p controller
 
+      - name: Run Hello-World Plugin Tests
+        run: cargo test -p hello-world
+
   release:
     name: Create Release
     if: startsWith(github.ref, 'refs/tags/')
     needs: build_and_test
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target: [x86_64-unknown-linux-gnu, x86_64-pc-windows-msvc, x86_64-apple-darwin]
     steps:
       - uses: actions/checkout@v4
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: wasm32-wasip1
+          targets: ${{ matrix.target }}, wasm32-wasip1
 
-      - name: Build Agent for Release
+      - name: Build Agent for ${{ matrix.target }}
+        run: cargo build -p agent --release --target ${{ matrix.target }}
+
+      - name: Build Controller for ${{ matrix.target }}
+        run: cargo build -p controller --release --target ${{ matrix.target }}
+
+      - name: Build Agent for wasm32-wasip1
         run: cargo build -p agent --release --target wasm32-wasip1
 
-      - name: Build Controller for Release
-        run: cargo build -p controller --release
+      - name: Build Hello-World Plugin for wasm32-wasip1
+        run: cargo build -p hello-world --release --target wasm32-wasip1
+
+      - name: Archive production artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: binaries-${{ matrix.target }}
+          path: |
+            target/${{ matrix.target }}/release/agent
+            target/${{ matrix.target }}/release/controller
+            target/wasm32-wasip1/release/agent.wasm
+            target/wasm32-wasip1/release/hello_world.wasm
+
+  create_release:
+    name: Upload Release Assets
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all workflow artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: List downloaded artifacts
+        run: ls -R artifacts
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            target/wasm32-wasip1/release/hello_world.wasm
-            target/release/agent
-            target/release/controller
+            artifacts/**/agent
+            artifacts/**/controller
+            artifacts/**/*.wasm
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
